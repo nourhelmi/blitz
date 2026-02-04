@@ -5,6 +5,7 @@ import { nowIso } from '@/lib/time'
 import { initRunControl } from '@/lib/run-control'
 import { runOrchestrator } from '@/lib/orchestrator'
 import { getTaskList } from '@/lib/tasks'
+import { logError, logInfo, logWarn } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,7 @@ type RunBody = {
 
 export const GET = async (): Promise<Response> => {
   const state = await getState()
+  await logInfo('runs.get', { count: state.runs.length })
   return NextResponse.json({ runs: state.runs, current_run: state.current_run })
 }
 
@@ -22,6 +24,7 @@ export const POST = async (request: Request): Promise<Response> => {
   const body = (await request.json()) as RunBody
   const taskList = await getTaskList()
   if (!taskList || !taskList.approved_at) {
+    await logWarn('runs.start.missing_tasks')
     return NextResponse.json(
       { error: 'Task list must be approved before running.' },
       { status: 400 }
@@ -59,6 +62,7 @@ export const POST = async (request: Request): Promise<Response> => {
   }))
 
   emitEvent({ type: 'stage_change', stage: 'running' })
+  await logInfo('runs.start', { run_id: runId, max_parallel: maxParallel })
 
   initRunControl(runId)
   setTimeout(() => {
@@ -72,6 +76,10 @@ export const POST = async (request: Request): Promise<Response> => {
         },
       }))
       emitEvent({ type: 'run_completed', success: false })
+      await logError('runs.failed', {
+        run_id: runId,
+        error: error instanceof Error ? error.message : 'Run failed.',
+      })
     })
   }, 0)
 

@@ -1,15 +1,46 @@
 import { generateText, Output } from 'ai'
 import { openrouter } from '@openrouter/ai-sdk-provider'
 import { readFile } from 'fs/promises'
-import { SpecSchema, type Spec } from '../schema'
+import { z } from 'zod'
+import { SpecSchema, TechStackEntrySchema, type Spec } from '../schema'
 import { getModelId } from './client'
 import { loadPrompt } from './prompts'
 import { nowIso } from '../time'
 
-const SpecDraftSchema = SpecSchema.omit({
-  id: true,
-  generated_at: true,
-  approved_at: true,
+const SpecLLMOutputSchema = z.object({
+  project: z.string().describe('Project name.'),
+  version: z.string().describe('Spec version string.'),
+  summary: z.string().describe('High-level project summary.'),
+  goals: z.array(z.string()).describe('Primary outcomes the project targets.'),
+  architecture: z
+    .object({
+      overview: z.string().describe('Concise architecture overview.'),
+      tech_stack: z.array(TechStackEntrySchema).describe('Grouped tech stack items.'),
+      key_components: z
+        .array(
+          z.object({
+            name: z.string().describe('Component name.'),
+            description: z.string().describe('What this component does.'),
+            responsibilities: z.array(z.string()).describe('Key responsibilities.'),
+          })
+        )
+        .describe('Major components that will be built.'),
+    })
+    .describe('System architecture details.'),
+  constraints: z.array(z.string()).describe('Non-negotiable constraints.'),
+  conventions: z.array(z.string()).describe('Coding or product conventions.'),
+  init_script: z.string().describe('Commands to start locally.'),
+  working_directory: z.string().describe('Root working directory.'),
+  phases: z
+    .array(
+      z.object({
+        id: z.string().describe('Phase identifier.'),
+        name: z.string().describe('Short phase name.'),
+        description: z.string().describe('Phase scope and deliverables.'),
+        depends_on: z.array(z.string()).describe('Phase IDs that must finish first.'),
+      })
+    )
+    .describe('Ordered project phases with dependencies.'),
 })
 
 type GenerateSpecInput = {
@@ -64,7 +95,7 @@ export const generateSpec = async ({
     model: openrouter(getModelId()),
     system,
     output: Output.object({
-      schema: SpecDraftSchema,
+      schema: SpecLLMOutputSchema,
       name: 'spec',
       description: 'Structured project specification derived from the document.',
     }),

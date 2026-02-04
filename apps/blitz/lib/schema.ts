@@ -41,43 +41,50 @@ export const DocumentSchema = z.object({
 
 export type Document = z.infer<typeof DocumentSchema>
 
+export const TechStackEntrySchema = z
+  .object({
+    category: z.string().describe('Area like frontend, backend, infra, or data.'),
+    items: z.array(z.string()).describe('Tools, frameworks, or services in this area.'),
+  })
+  .describe('Grouped tech stack items.')
+
 export const SpecSchema = z.object({
-  id: z.string(),
-  project: z.string(),
-  version: z.string().default('1.0.0'),
-  summary: z.string(),
-  goals: z.array(z.string()).default([]),
+  id: z.string().describe('Unique spec identifier.'),
+  project: z.string().describe('Project name.'),
+  version: z.string().default('1.0.0').describe('Spec version string.'),
+  summary: z.string().describe('High-level project summary.'),
+  goals: z.array(z.string()).default([]).describe('Primary outcomes the project targets.'),
   architecture: z
     .object({
-      overview: z.string(),
-      tech_stack: z.record(z.string(), z.array(z.string())).optional(),
+      overview: z.string().describe('Concise architecture overview.'),
+      tech_stack: z.array(TechStackEntrySchema).optional(),
       key_components: z
         .array(
           z.object({
-            name: z.string(),
-            description: z.string(),
-            responsibilities: z.array(z.string()),
+            name: z.string().describe('Component name.'),
+            description: z.string().describe('What this component does.'),
+            responsibilities: z.array(z.string()).describe('Key responsibilities.'),
           })
         )
         .optional(),
     })
     .optional(),
-  constraints: z.array(z.string()).optional(),
-  conventions: z.array(z.string()).optional(),
-  init_script: z.string().optional(),
-  working_directory: z.string().optional(),
+  constraints: z.array(z.string()).optional().describe('Non-negotiable constraints.'),
+  conventions: z.array(z.string()).optional().describe('Coding or product conventions to follow.'),
+  init_script: z.string().optional().describe('How to start the app locally.'),
+  working_directory: z.string().optional().describe('Root directory for the project.'),
   phases: z
     .array(
       z.object({
-        id: z.string(),
-        name: z.string(),
-        description: z.string(),
-        depends_on: z.array(z.string()).default([]),
+        id: z.string().describe('Phase identifier.'),
+        name: z.string().describe('Short phase name.'),
+        description: z.string().describe('What this phase delivers.'),
+        depends_on: z.array(z.string()).default([]).describe('Phase IDs that must finish first.'),
       })
     )
     .optional(),
-  generated_at: z.string(),
-  approved_at: z.string().optional(),
+  generated_at: z.string().describe('ISO timestamp for generation time.'),
+  approved_at: z.string().optional().describe('ISO timestamp for approval time.'),
 })
 
 export type Spec = z.infer<typeof SpecSchema>
@@ -98,17 +105,17 @@ export const TaskCategory = z.enum(['functional', 'refactor', 'infrastructure', 
 export type TaskCategory = z.infer<typeof TaskCategory>
 
 export const TaskSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  phase: z.string().optional(),
-  category: TaskCategory.default('functional'),
-  blocked_by: z.array(z.string()).default([]),
-  acceptance: z.array(z.string()),
-  hints: z.array(z.string()).optional(),
-  files_likely_touched: z.array(z.string()).optional(),
-  priority: z.number().default(0),
-  estimated_minutes: z.number().optional(),
+  id: z.string().describe('Unique task identifier.'),
+  title: z.string().describe('Short, action-oriented task title.'),
+  description: z.string().describe('What to implement.'),
+  phase: z.string().optional().describe('Phase bucket for grouping.'),
+  category: TaskCategory.default('functional').describe('Task type.'),
+  blocked_by: z.array(z.string()).default([]).describe('Task IDs that must complete first.'),
+  acceptance: z.array(z.string()).describe('Concrete, verifiable criteria.'),
+  hints: z.array(z.string()).optional().describe('Implementation guidance.'),
+  files_likely_touched: z.array(z.string()).optional().describe('Predicted file paths.'),
+  priority: z.number().default(0).describe('Higher means earlier scheduling.'),
+  estimated_minutes: z.number().optional().describe('Rough time estimate in minutes.'),
 })
 
 export type Task = z.infer<typeof TaskSchema>

@@ -4,20 +4,22 @@ import { removeTask, updateTask } from '@/lib/tasks'
 import { updateState } from '@/lib/state'
 import { emitEvent } from '@/lib/events'
 import { getTasksPath } from '@/lib/paths'
+import { logInfo } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export const PATCH = async (request: Request, { params }: Params): Promise<Response> => {
+  const { id } = await params
   const payload = (await request.json()) as Partial<Task>
   const patch = TaskSchema.partial().parse(payload)
-  const updated = await updateTask(params.id, patch)
+  const updated = await updateTask(id, patch)
   await updateState((state) => ({
     ...state,
     pipeline: {
@@ -28,11 +30,13 @@ export const PATCH = async (request: Request, { params }: Params): Promise<Respo
     },
   }))
   emitEvent({ type: 'stage_change', stage: 'tasks_review' })
+  await logInfo('tasks.update', { task_id: id, task_list_id: updated.id })
   return NextResponse.json({ task_list: updated })
 }
 
 export const DELETE = async (_request: Request, { params }: Params): Promise<Response> => {
-  const updated = await removeTask(params.id)
+  const { id } = await params
+  const updated = await removeTask(id)
   await updateState((state) => ({
     ...state,
     pipeline: {
@@ -43,5 +47,6 @@ export const DELETE = async (_request: Request, { params }: Params): Promise<Res
     },
   }))
   emitEvent({ type: 'stage_change', stage: 'tasks_review' })
+  await logInfo('tasks.delete', { task_id: id, task_list_id: updated.id })
   return NextResponse.json({ task_list: updated })
 }

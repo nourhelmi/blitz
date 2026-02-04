@@ -2,17 +2,19 @@ import { NextResponse } from 'next/server'
 import { pauseRun } from '@/lib/run-control'
 import { updateState } from '@/lib/state'
 import { emitEvent } from '@/lib/events'
+import { logInfo } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export const POST = async (_request: Request, { params }: Params): Promise<Response> => {
+  const { id } = await params
   pauseRun()
   await updateState((state) => ({
     ...state,
@@ -22,5 +24,6 @@ export const POST = async (_request: Request, { params }: Params): Promise<Respo
       : state.current_run,
   }))
   emitEvent({ type: 'stage_change', stage: 'paused' })
-  return NextResponse.json({ run_id: params.id, status: 'paused' })
+  await logInfo('runs.pause', { run_id: id })
+  return NextResponse.json({ run_id: id, status: 'paused' })
 }

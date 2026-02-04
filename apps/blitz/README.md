@@ -38,3 +38,9 @@ BLITZ_DRY_RUN=false
 - Runtime state lives in `data/` (spec, tasks, logs, context).
 - The orchestrator never commits by default. If you want commits, wire them in explicitly.
 - Tasks are immutable during runs; edits should happen before approval.
+
+## Logging
+
+```bash
+tail -f data/logs/system.log
+```

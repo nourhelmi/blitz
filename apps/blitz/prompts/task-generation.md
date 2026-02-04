@@ -155,3 +155,11 @@ Before finalizing:
 - [ ] Parallel opportunities are maximized (not everything depends on everything)
 - [ ] Each phase from the spec has corresponding tasks
 - [ ] No orphan tasks (everything connects to the graph or is a root node)
+
+# Required Fields
+
+All fields in the schema are required. If a value is unknown:
+- Use empty arrays (`[]`) for list fields (`blocked_by`, `hints`, `files_likely_touched`)
+- Use empty string (`""`) for `phase` if not applicable
+- Use `0` for `estimated_minutes` if uncertain
+- Do not omit any keys

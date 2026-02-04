@@ -21,7 +21,7 @@ export const TaskReview = ({ taskList, tasks, onRefresh }: TaskReviewProps) => {
 
   const grouped = useMemo(() => {
     return tasks.reduce<Record<string, TaskWithStatus[]>>((acc, task) => {
-      const key = task.phase ?? "Unphased"
+      const key = task.phase && task.phase.trim().length > 0 ? task.phase : "Unphased"
       acc[key] = acc[key] ? [...acc[key], task] : [task]
       return acc
     }, {})
@@ -193,7 +193,9 @@ const TaskCard = ({ task, onRefresh }: { task: TaskWithStatus; onRefresh: () => 
                 onChange={(event) => setDraft({ ...draft, phase: event.target.value })}
               />
             ) : (
-              <span>{task.phase ?? "Unphased"}</span>
+            <span>
+              {task.phase && task.phase.trim().length > 0 ? task.phase : "Unphased"}
+            </span>
             )}
           </Field>
           <Field label="Priority">

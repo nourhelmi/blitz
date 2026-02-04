@@ -6,6 +6,7 @@ import { ensureDataDirs } from '@/lib/storage'
 import { updateState } from '@/lib/state'
 import { nowIso } from '@/lib/time'
 import { emitEvent } from '@/lib/events'
+import { logError, logInfo, logWarn } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,40 +21,52 @@ export const POST = async (request: Request): Promise<Response> => {
   const payload = await readUploadPayload(request, contentType)
 
   if (!payload.content.trim()) {
+    await logWarn('upload.empty', { name: payload.name })
     return NextResponse.json({ error: 'Document content is required.' }, { status: 400 })
   }
 
-  const document: Document = DocumentSchema.parse({
-    id: crypto.randomUUID(),
-    name: payload.name,
-    content: payload.content,
-    content_type: detectContentType(payload.name),
-    uploaded_at: nowIso(),
-  })
+  try {
+    const document: Document = DocumentSchema.parse({
+      id: crypto.randomUUID(),
+      name: payload.name,
+      content: payload.content,
+      content_type: detectContentType(payload.name),
+      uploaded_at: nowIso(),
+    })
 
-  await ensureDataDirs()
-  const path = getDocumentPath(document.id, document.name)
-  await writeFile(path, document.content, 'utf-8')
+    await ensureDataDirs()
+    const path = getDocumentPath(document.id, document.name)
+    await writeFile(path, document.content, 'utf-8')
 
-  await updateState((state) => ({
-    ...state,
-    pipeline: {
-      ...state.pipeline,
+    await updateState((state) => ({
+      ...state,
+      pipeline: {
+        ...state.pipeline,
+        stage: 'doc_uploaded',
+        document_path: path,
+        spec_path: undefined,
+        tasks_path: undefined,
+        error: undefined,
+      },
+    }))
+
+    emitEvent({ type: 'stage_change', stage: 'doc_uploaded' })
+    await logInfo('upload.success', {
+      name: document.name,
+      bytes: document.content.length,
+      path,
+    })
+
+    return NextResponse.json({
+      document_id: document.id,
+      path,
       stage: 'doc_uploaded',
-      document_path: path,
-      spec_path: undefined,
-      tasks_path: undefined,
-      error: undefined,
-    },
-  }))
-
-  emitEvent({ type: 'stage_change', stage: 'doc_uploaded' })
-
-  return NextResponse.json({
-    document_id: document.id,
-    path,
-    stage: 'doc_uploaded',
-  })
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Upload failed.'
+    await logError('upload.failed', { error: message })
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }
 
 const readUploadPayload = async (

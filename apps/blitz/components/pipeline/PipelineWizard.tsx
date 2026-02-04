@@ -55,7 +55,7 @@ export const PipelineWizard = () => {
         </div>
       </Card>
 
-      <DocumentUpload onComplete={refresh} />
+      <DocumentUpload onComplete={refresh} stage={data.state.pipeline.stage} />
 
       {data.spec ? <SpecEditor spec={data.spec} onRefresh={refresh} /> : null}
 

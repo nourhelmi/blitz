@@ -23,6 +23,8 @@ export const getDocumentPath = (id: string, name: string): string =>
 export const getTaskLogPath = (taskId: string): string =>
   path.join(getLogsDir(), `${sanitizeFilename(taskId)}.log`)
 
+export const getSystemLogPath = (): string => path.join(getLogsDir(), 'system.log')
+
 const sanitizeFilename = (value: string): string =>
   value
     .toLowerCase()

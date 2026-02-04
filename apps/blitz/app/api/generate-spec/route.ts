@@ -5,6 +5,8 @@ import { saveSpec } from '@/lib/spec'
 import { emitEvent } from '@/lib/events'
 import { nowIso } from '@/lib/time'
 import { getSpecPath } from '@/lib/paths'
+import { logError, logInfo, logWarn } from '@/lib/logger'
+import { getLlmErrorMeta } from '@/lib/llm/error'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,9 +22,11 @@ export const POST = async (request: Request): Promise<Response> => {
   const documentPath = state.pipeline.document_path
 
   if (!documentPath) {
+    await logWarn('spec.generate.missing_document')
     return NextResponse.json({ error: 'No document uploaded yet.' }, { status: 400 })
   }
 
+  await logInfo('spec.generate.start', { document_path: documentPath })
   await updateState((current) => ({
     ...current,
     pipeline: { ...current.pipeline, stage: 'spec_generating', error: undefined },
@@ -54,6 +58,7 @@ export const POST = async (request: Request): Promise<Response> => {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Spec generation failed.'
+    await logError('spec.generate.failed', { error: message, ...getLlmErrorMeta(error) })
     await updateState((current) => ({
       ...current,
       pipeline: { ...current.pipeline, stage: 'doc_uploaded', error: message },

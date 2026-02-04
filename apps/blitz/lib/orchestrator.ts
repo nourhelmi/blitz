@@ -8,6 +8,7 @@ import { spawnAgent } from './worker'
 import { appendContext, initContextFile } from './context'
 import { nowIso } from './time'
 import { getRunControl, waitForResume } from './run-control'
+import { logError, logInfo } from './logger'
 
 type RunOrchestratorInput = {
   runId: string
@@ -28,10 +29,12 @@ export const runOrchestrator = async ({
   await initContextFile()
   const control = getRunControl()
   emitEvent({ type: 'run_started', run_id: runId })
+  await logInfo('orchestrator.start', { run_id: runId, max_parallel: maxParallel })
 
   while (true) {
     if (control.stopping) {
       await finalizeRun(false, 'Run stopped by user.')
+      await logInfo('orchestrator.stopped', { run_id: runId })
       emitEvent({ type: 'run_completed', success: false })
       return
     }
@@ -78,6 +81,7 @@ export const runOrchestrator = async ({
         )
       )
       emitEvent({ type: 'task_started', task_id: task.id })
+      await logInfo('task.start', { task_id: task.id, run_id: runId })
     }
 
     if (control.activeWorkers.size === 0) {
@@ -109,6 +113,11 @@ export const runOrchestrator = async ({
     }
 
     emitEvent({ type: 'task_completed', task_id: completed.taskId, success: completed.result.success })
+    await logInfo('task.complete', {
+      task_id: completed.taskId,
+      run_id: runId,
+      success: completed.result.success,
+    })
   }
 }
 
@@ -169,6 +178,11 @@ const finalizeRun = async (success: boolean, error?: string): Promise<void> => {
     }
   })
   emitEvent({ type: 'stage_change', stage: success ? 'completed' : 'paused' })
+  if (success) {
+    await logInfo('orchestrator.complete', { success })
+  } else {
+    await logError('orchestrator.failed', { error: error ?? 'unknown' })
+  }
 }
 
 const waitForAnyWorker = async (

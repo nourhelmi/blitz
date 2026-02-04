@@ -1,13 +1,27 @@
 import { generateText, Output } from 'ai'
 import { openrouter } from '@openrouter/ai-sdk-provider'
 import { z } from 'zod'
-import { TaskListSchema, TaskSchema, type TaskList, type Spec } from '../schema'
+import { TaskCategory, TaskListSchema, type TaskList, type Spec } from '../schema'
 import { getModelId } from './client'
 import { loadPrompt } from './prompts'
 import { nowIso } from '../time'
 
+const TaskLLMOutputSchema = z.object({
+  id: z.string().describe('Unique task identifier.'),
+  title: z.string().describe('Short, action-oriented task title.'),
+  description: z.string().describe('What to implement and why it matters.'),
+  phase: z.string().describe('Phase ID, or empty string if not applicable.'),
+  category: TaskCategory.describe('Task type.'),
+  blocked_by: z.array(z.string()).describe('Task IDs that must complete first.'),
+  acceptance: z.array(z.string()).describe('Concrete, verifiable criteria.'),
+  hints: z.array(z.string()).describe('Implementation guidance.'),
+  files_likely_touched: z.array(z.string()).describe('Predicted file paths.'),
+  priority: z.number().describe('Higher means earlier scheduling.'),
+  estimated_minutes: z.number().describe('Rough time estimate in minutes.'),
+})
+
 const TasksDraftSchema = z.object({
-  tasks: z.array(TaskSchema),
+  tasks: z.array(TaskLLMOutputSchema),
 })
 
 type GenerateTasksInput = {

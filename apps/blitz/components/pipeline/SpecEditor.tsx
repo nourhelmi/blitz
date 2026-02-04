@@ -20,6 +20,7 @@ export const SpecEditor = ({ spec, onRefresh }: SpecEditorProps) => {
   const [guidance, setGuidance] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | undefined>()
+  const canGenerateTasks = Boolean(draft.approved_at)
 
   const jsonValue = useMemo(() => JSON.stringify(draft, null, 2), [draft])
   const [jsonDraft, setJsonDraft] = useState(jsonValue)
@@ -59,6 +60,28 @@ export const SpecEditor = ({ spec, onRefresh }: SpecEditorProps) => {
       onRefresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Spec approval failed.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const generateTasks = async (): Promise<void> => {
+    if (!canGenerateTasks) {
+      setError("Approve the spec before generating tasks.")
+      return
+    }
+    setBusy(true)
+    setError(undefined)
+    try {
+      const response = await fetch("/api/generate-tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+      if (!response.ok) throw new Error(await response.text())
+      onRefresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Task generation failed.")
     } finally {
       setBusy(false)
     }
@@ -194,6 +217,9 @@ export const SpecEditor = ({ spec, onRefresh }: SpecEditorProps) => {
           </Button>
           <Button variant="outline" onClick={save} disabled={busy}>
             Save
+          </Button>
+          <Button variant="outline" onClick={generateTasks} disabled={busy || !canGenerateTasks}>
+            Generate Tasks
           </Button>
           <Button onClick={approve} disabled={busy}>
             Approve

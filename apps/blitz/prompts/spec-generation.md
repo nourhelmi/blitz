@@ -43,14 +43,14 @@ Semantic version for this spec iteration. Start at `"1.0.0"` unless document spe
 1-2 paragraphs describing the high-level system design. Include: major boundaries, data flow, deployment topology if known.
 
 ## `architecture.tech_stack`
-Map of category → technologies. Be specific about versions when the document mentions them.
+Array of category → items entries. Be specific about versions when the document mentions them.
 ```json
-{
-  "frontend": ["Next.js 14", "TailwindCSS", "React Query"],
-  "backend": ["Node.js", "tRPC", "Prisma"],
-  "database": ["PostgreSQL 15"],
-  "infrastructure": ["Docker", "Fly.io"]
-}
+[
+  { "category": "frontend", "items": ["Next.js 14", "TailwindCSS", "React Query"] },
+  { "category": "backend", "items": ["Node.js", "tRPC", "Prisma"] },
+  { "category": "database", "items": ["PostgreSQL 15"] },
+  { "category": "infrastructure", "items": ["Docker", "Fly.io"] }
+]
 ```
 
 ## `architecture.key_components`
@@ -90,6 +90,12 @@ Example phases:
 4. `polish` - UX improvements, performance (depends on core-features)
 
 # Quality Checklist
+
+## Required Fields
+All fields in the schema are required. If a value is unknown:
+- Use empty arrays (`[]`) for list fields
+- Use empty strings (`""`) for string fields
+- Do not omit any keys
 
 Before finalizing, verify:
 
