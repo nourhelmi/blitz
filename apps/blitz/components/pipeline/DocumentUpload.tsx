@@ -55,6 +55,27 @@ export const DocumentUpload = ({ onComplete, stage }: DocumentUploadProps) => {
     }
   }
 
+  const generateClarifications = async (): Promise<void> => {
+    setBusy(true)
+    setError(undefined)
+    try {
+      if (shouldUpload) {
+        const ok = await upload()
+        if (!ok) return
+      }
+      const response = await fetch('/api/clarify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!response.ok) throw new Error(await response.text())
+      onComplete()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Clarification generation failed.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const generateSpec = async (): Promise<void> => {
     setBusy(true)
     setError(undefined)
@@ -133,6 +154,13 @@ export const DocumentUpload = ({ onComplete, stage }: DocumentUploadProps) => {
         <div className="flex flex-wrap gap-3">
           <Button onClick={lockDocument} disabled={busy || !hasLocalDoc}>
             {busy ? 'Uploading...' : 'Lock Document'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={generateClarifications}
+            disabled={busy || (!hasLocalDoc && !hasRemoteDoc)}
+          >
+            {busy ? 'Generating...' : 'Clarify First'}
           </Button>
           <Button
             variant="outline"

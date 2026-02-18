@@ -1,3 +1,4 @@
+import { execFile } from 'child_process'
 import type { Run, State, Task, TaskRun, TaskStatus } from './schema'
 import { getSpec } from './spec'
 import { getTaskList } from './tasks'
@@ -9,17 +10,22 @@ import { appendContext, initContextFile } from './context'
 import { nowIso } from './time'
 import { getRunControl, waitForResume } from './run-control'
 import { logError, logInfo } from './logger'
+import { validateTaskCompletion } from './validator'
 
 type RunOrchestratorInput = {
   runId: string
   maxParallel: number
+  maxRetries?: number
 }
+
+// Non-retryable error patterns
+const NON_RETRYABLE_PATTERNS = /blocked|non-retryable/i
 
 export const runOrchestrator = async ({
   runId,
   maxParallel,
+  maxRetries = 2,
 }: RunOrchestratorInput): Promise<void> => {
-  // Main loop: spawn ready tasks up to parallel limit, wait for completion, update state.
   const spec = await getSpec()
   const taskList = await getTaskList()
   if (!spec || !taskList) {
@@ -30,6 +36,24 @@ export const runOrchestrator = async ({
   const control = getRunControl()
   emitEvent({ type: 'run_started', run_id: runId })
   await logInfo('orchestrator.start', { run_id: runId, max_parallel: maxParallel })
+
+  // Execute init_script if present
+  if (spec.init_script && spec.init_script.trim().length > 0) {
+    const cwd = spec.working_directory ?? process.cwd()
+    await logInfo('orchestrator.init_script.start', { cwd })
+    emitEvent({ type: 'run_init', success: true })
+    try {
+      await execInit(spec.init_script, cwd)
+      await logInfo('orchestrator.init_script.success')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'init_script failed'
+      await logError('orchestrator.init_script.failed', { error: message })
+      emitEvent({ type: 'run_init', success: false, error: message })
+      await finalizeRun(false, `init_script failed: ${message}`)
+      emitEvent({ type: 'run_completed', success: false })
+      return
+    }
+  }
 
   while (true) {
     if (control.stopping) {
@@ -62,18 +86,35 @@ export const runOrchestrator = async ({
 
     for (const task of toSpawn) {
       const logFile = await initTaskLog(task.id)
-      const agent = await spawnAgent(task, spec)
+
+      // Compute timeout: 2x estimated_minutes, minimum 10 min
+      const estimatedMinutes = task.estimated_minutes ?? 30
+      const timeoutMs = Math.max(estimatedMinutes * 2, 10) * 60 * 1000
+
+      const agent = await spawnAgent({
+        task,
+        spec,
+        state,
+        allTasks: taskList.tasks,
+        timeoutMs,
+      })
       control.activeWorkers.set(task.id, agent)
       agent.onOutput((line) => {
         appendTaskLog(task.id, line).catch(() => {})
         emitEvent({ type: 'task_log', task_id: task.id, line })
       })
 
+      // Get current attempt count
+      const currentRun = state.current_run
+      const existingTaskRun = currentRun?.task_runs.find((tr) => tr.task_id === task.id)
+      const attempt = (existingTaskRun?.attempt ?? 0) + 1
+
       await updateState((current) =>
         updateRunState(markTaskStatus(current, task.id, 'in_progress'), (run) =>
           upsertTaskRun(run, {
             task_id: task.id,
             status: 'in_progress',
+            attempt,
             agent_pid: agent.pid,
             started_at: nowIso(),
             log_file: logFile,
@@ -81,7 +122,7 @@ export const runOrchestrator = async ({
         )
       )
       emitEvent({ type: 'task_started', task_id: task.id })
-      await logInfo('task.start', { task_id: task.id, run_id: runId })
+      await logInfo('task.start', { task_id: task.id, run_id: runId, attempt })
     }
 
     if (control.activeWorkers.size === 0) {
@@ -94,15 +135,66 @@ export const runOrchestrator = async ({
 
     control.activeWorkers.delete(completed.taskId)
 
+    const task = taskList.tasks.find((t) => t.id === completed.taskId)
+    let taskSuccess = completed.result.success
+    let taskError = completed.result.error
+
+    // Post-task validation
+    if (taskSuccess && task) {
+      const validation = await validateTaskCompletion(task, spec)
+      if (!validation.valid) {
+        taskSuccess = false
+        taskError = `Validation failed: ${validation.issues.join('; ')}`
+        await logInfo('task.validation.failed', {
+          task_id: completed.taskId,
+          issues: validation.issues.join('; '),
+        })
+      }
+    }
+
+    // Check retry eligibility
+    const latestState = await getState()
+    const currentTaskRun = latestState.current_run?.task_runs.find(
+      (tr) => tr.task_id === completed.taskId
+    )
+    const attempt = currentTaskRun?.attempt ?? 1
+    const isRetryable =
+      !taskSuccess &&
+      attempt < maxRetries &&
+      !NON_RETRYABLE_PATTERNS.test(taskError ?? '')
+
+    if (isRetryable) {
+      await updateState((current) => {
+        const updated = markTaskStatus(current, completed.taskId, 'pending')
+        return updateRunState(updated, (run) =>
+          upsertTaskRun(run, {
+            task_id: completed.taskId,
+            status: 'pending',
+            attempt,
+            error: taskError,
+            completed_at: nowIso(),
+          })
+        )
+      })
+      await logInfo('task.retry', {
+        task_id: completed.taskId,
+        attempt,
+        max_retries: maxRetries,
+      })
+      await sleep(1000 * attempt)
+      continue
+    }
+
+    const status: TaskStatus = taskSuccess ? 'completed' : 'failed'
     await updateState((current) => {
-      const status: TaskStatus = completed.result.success ? 'completed' : 'failed'
       const updated = markTaskStatus(current, completed.taskId, status)
       return updateRunState(updated, (run) =>
         upsertTaskRun(run, {
           task_id: completed.taskId,
           status,
+          attempt,
           completed_at: nowIso(),
-          error: completed.result.success ? undefined : 'Agent failed or timed out.',
+          error: taskSuccess ? undefined : (taskError ?? 'Agent exited with no error message.'),
           context: completed.result.context,
         })
       )
@@ -112,17 +204,31 @@ export const runOrchestrator = async ({
       await appendContext(completed.result.context)
     }
 
-    emitEvent({ type: 'task_completed', task_id: completed.taskId, success: completed.result.success })
+    emitEvent({
+      type: 'task_completed',
+      task_id: completed.taskId,
+      success: taskSuccess,
+      error: taskSuccess ? undefined : taskError,
+    })
     await logInfo('task.complete', {
       task_id: completed.taskId,
       run_id: runId,
-      success: completed.result.success,
+      success: taskSuccess,
     })
   }
 }
 
+const execInit = (script: string, cwd: string): Promise<void> =>
+  new Promise((resolve, reject) => {
+    execFile('sh', ['-c', script], { cwd, timeout: 120000 }, (error, stdout, stderr) => {
+      if (stdout) console.log('[init_script]', stdout)
+      if (stderr) console.error('[init_script]', stderr)
+      if (error) reject(error)
+      else resolve()
+    })
+  })
+
 const getReadyTasks = (tasks: Task[], state: State): Task[] => {
-  // Ready tasks are those not in progress/completed and with all deps completed.
   const completed = new Set(
     Object.entries(state.task_states)
       .filter(([, status]) => status === 'completed')
@@ -132,7 +238,7 @@ const getReadyTasks = (tasks: Task[], state: State): Task[] => {
   return tasks
     .filter((task) => {
       const status = state.task_states[task.id]
-      if (status === 'completed' || status === 'in_progress') return false
+      if (status === 'completed' || status === 'in_progress' || status === 'failed') return false
       return task.blocked_by.every((dep) => completed.has(dep))
     })
     .sort((a, b) => b.priority - a.priority)
@@ -186,8 +292,8 @@ const finalizeRun = async (success: boolean, error?: string): Promise<void> => {
 }
 
 const waitForAnyWorker = async (
-  workers: Map<string, { wait: () => Promise<{ success: boolean; result?: string; context?: string }> }>
-): Promise<{ taskId: string; result: { success: boolean; result?: string; context?: string } } | undefined> => {
+  workers: Map<string, { wait: () => Promise<{ success: boolean; result?: string; context?: string; error?: string }> }>
+): Promise<{ taskId: string; result: { success: boolean; result?: string; context?: string; error?: string } } | undefined> => {
   const entries = [...workers.entries()]
   if (entries.length === 0) return undefined
   return Promise.race(

@@ -15,6 +15,8 @@ export const getTasksPath = (): string => path.join(getDataDir(), 'tasks.json')
 
 export const getStatePath = (): string => path.join(getDataDir(), 'state.json')
 
+export const getClarificationsPath = (): string => path.join(getDataDir(), 'clarifications.json')
+
 export const getContextPath = (): string => path.join(getDataDir(), 'blitz-context.md')
 
 export const getDocumentPath = (id: string, name: string): string =>

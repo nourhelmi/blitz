@@ -7,9 +7,11 @@ export type BlitzEvent =
   | { type: 'tasks_ready'; count: number }
   | { type: 'task_started'; task_id: string }
   | { type: 'task_log'; task_id: string; line: string }
-  | { type: 'task_completed'; task_id: string; success: boolean }
+  | { type: 'task_completed'; task_id: string; success: boolean; error?: string }
   | { type: 'run_started'; run_id: string }
   | { type: 'run_completed'; success: boolean }
+  | { type: 'run_init'; success: boolean; error?: string }
+  | { type: 'clarifications_ready'; count: number }
 
 type StreamController = ReadableStreamDefaultController<Uint8Array>
 

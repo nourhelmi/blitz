@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic'
 
 type RunBody = {
   max_parallel?: number
+  max_retries?: number
 }
 
 export const GET = async (): Promise<Response> => {
@@ -30,7 +31,9 @@ export const POST = async (request: Request): Promise<Response> => {
       { status: 400 }
     )
   }
+
   const maxParallel = clampParallel(body.max_parallel)
+  const maxRetries = Math.max(0, Math.min(10, body.max_retries ?? 2))
   const runId = crypto.randomUUID()
   const startedAt = nowIso()
 
@@ -47,6 +50,7 @@ export const POST = async (request: Request): Promise<Response> => {
       started_at: startedAt,
       status: 'running',
       max_parallel: maxParallel,
+      max_retries: maxRetries,
       task_runs: [],
     },
     runs: [
@@ -56,17 +60,18 @@ export const POST = async (request: Request): Promise<Response> => {
         started_at: startedAt,
         status: 'running',
         max_parallel: maxParallel,
+        max_retries: maxRetries,
         task_runs: [],
       },
     ],
   }))
 
   emitEvent({ type: 'stage_change', stage: 'running' })
-  await logInfo('runs.start', { run_id: runId, max_parallel: maxParallel })
+  await logInfo('runs.start', { run_id: runId, max_parallel: maxParallel, max_retries: maxRetries })
 
   initRunControl(runId)
   setTimeout(() => {
-    runOrchestrator({ runId, maxParallel }).catch(async (error) => {
+    runOrchestrator({ runId, maxParallel, maxRetries }).catch(async (error) => {
       await updateState((state) => ({
         ...state,
         pipeline: {

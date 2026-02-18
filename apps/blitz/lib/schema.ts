@@ -5,6 +5,7 @@ import { z } from 'zod'
 export const PipelineStage = z.enum([
   'empty',
   'doc_uploaded',
+  'clarifying',
   'spec_generating',
   'spec_review',
   'spec_approved',
@@ -22,6 +23,7 @@ export const PipelineStateSchema = z
   .object({
     stage: PipelineStage,
     document_path: z.string().optional(),
+    clarifications_path: z.string().optional(),
     spec_path: z.string().optional(),
     tasks_path: z.string().optional(),
     current_run_id: z.string().optional(),
@@ -30,6 +32,27 @@ export const PipelineStateSchema = z
   .default({ stage: 'empty' })
 
 export type PipelineState = z.infer<typeof PipelineStateSchema>
+
+export const ClarificationSchema = z.object({
+  id: z.string().describe('Unique clarification identifier.'),
+  question: z.string().describe('The clarifying question to ask the user.'),
+  context: z.string().describe('Why this question matters for the spec.'),
+  options: z.array(z.string()).optional().describe('Suggested answer options.'),
+  answer: z.string().optional().describe('User-provided answer.'),
+  assumption: z.string().optional().describe('LLM default assumption if user skips.'),
+})
+
+export type Clarification = z.infer<typeof ClarificationSchema>
+
+export const ClarificationListSchema = z.object({
+  id: z.string(),
+  document_id: z.string(),
+  clarifications: z.array(ClarificationSchema),
+  generated_at: z.string(),
+  approved_at: z.string().optional(),
+})
+
+export type ClarificationList = z.infer<typeof ClarificationListSchema>
 
 export const DocumentSchema = z.object({
   id: z.string(),
@@ -133,6 +156,7 @@ export type TaskList = z.infer<typeof TaskListSchema>
 export const TaskRunSchema = z.object({
   task_id: z.string(),
   status: TaskStatus,
+  attempt: z.number().default(0),
   agent_pid: z.number().optional(),
   started_at: z.string().optional(),
   completed_at: z.string().optional(),
@@ -149,6 +173,7 @@ export const RunSchema = z.object({
   started_at: z.string(),
   status: z.enum(['running', 'paused', 'completed', 'failed']),
   max_parallel: z.number().default(3),
+  max_retries: z.number().default(2),
   task_runs: z.array(TaskRunSchema).default([]),
 })
 

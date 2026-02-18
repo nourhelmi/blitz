@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Spec, State, TaskList, TaskWithStatus } from '@/lib/schema'
+import type { ClarificationList, Spec, State, TaskList, TaskWithStatus } from '@/lib/schema'
 import { withTaskStatuses } from '@/lib/task-status'
 
 type PipelineData = {
@@ -9,6 +9,7 @@ type PipelineData = {
   spec?: Spec
   taskList?: TaskList
   tasks?: TaskWithStatus[]
+  clarificationList?: ClarificationList
   loading: boolean
   error?: string
 }
@@ -30,18 +31,22 @@ export const usePipelineData = () => {
     try {
       const stateResult = await fetchJson<{ state: State }>('/api/state')
       const state = stateResult.state
-      const [specResult, tasksResult] = await Promise.all([
+      const [specResult, tasksResult, clarifyResult] = await Promise.all([
         state.pipeline.spec_path
           ? fetchJson<{ spec: Spec }>('/api/spec')
           : Promise.resolve(undefined),
         state.pipeline.tasks_path
           ? fetchJson<{ task_list: TaskList }>('/api/tasks')
           : Promise.resolve(undefined),
+        state.pipeline.clarifications_path
+          ? fetchJson<{ clarification_list: ClarificationList | null }>('/api/clarify')
+          : Promise.resolve(undefined),
       ])
       const spec = specResult?.spec
       const taskList = tasksResult?.task_list
       const tasks = taskList ? withTaskStatuses(taskList.tasks, state) : undefined
-      setData({ state, spec, taskList, tasks, loading: false })
+      const clarificationList = clarifyResult?.clarification_list ?? undefined
+      setData({ state, spec, taskList, tasks, clarificationList, loading: false })
     } catch (error) {
       setData((current) => ({
         ...current,

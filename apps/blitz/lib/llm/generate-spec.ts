@@ -2,10 +2,12 @@ import { generateText, Output } from 'ai'
 import { openrouter } from '@openrouter/ai-sdk-provider'
 import { readFile } from 'fs/promises'
 import { z } from 'zod'
-import { SpecSchema, TechStackEntrySchema, type Spec } from '../schema'
+import { SpecSchema, TechStackEntrySchema, ClarificationListSchema, type Spec } from '../schema'
 import { getModelId } from './client'
 import { loadPrompt } from './prompts'
 import { nowIso } from '../time'
+import { getClarificationsPath } from '../paths'
+import { readJsonFile } from '../storage'
 
 const SpecLLMOutputSchema = z.object({
   project: z.string().describe('Project name.'),
@@ -49,7 +51,7 @@ type GenerateSpecInput = {
 }
 
 // Builds user prompt with chain-of-thought structure
-const buildUserPrompt = (content: string, guidance?: string): string => {
+const buildUserPrompt = (content: string, guidance?: string, decisions?: string): string => {
   const guidanceSection = guidance
     ? `
 ## Reviewer Guidance
@@ -62,6 +64,18 @@ ${guidance}
 `
     : ''
 
+  const decisionsSection = decisions
+    ? `
+## Pre-Spec Decisions
+
+The following decisions were made by the user during a clarification phase. These are HARD CONSTRAINTS that must be reflected in the spec. Do not override or ignore these answers:
+
+<decisions>
+${decisions}
+</decisions>
+`
+    : ''
+
   return `## Project Document
 
 Analyze this document thoroughly before generating the specification.
@@ -69,13 +83,14 @@ Analyze this document thoroughly before generating the specification.
 <document>
 ${content}
 </document>
-${guidanceSection}
+${guidanceSection}${decisionsSection}
 ## Instructions
 
 1. First, identify what is explicitly stated vs what must be inferred
 2. Note any ambiguities or gaps that require reasonable defaults
 3. Consider the full lifecycle: development, testing, deployment, operations
 4. Generate a complete specification following the schema guidelines
+${decisions ? '5. Ensure all pre-spec decisions above are reflected as constraints or architecture choices' : ''}
 
 Produce the structured spec now.`
 }
@@ -91,6 +106,23 @@ export const generateSpec = async ({
   const content = await readFile(documentPath, 'utf-8')
   const system = await loadPrompt('spec-generation.md')
 
+  // Load clarification answers if they exist
+  let decisions: string | undefined
+  try {
+    const clarifications = await readJsonFile(
+      getClarificationsPath(),
+      ClarificationListSchema,
+      null as unknown as ReturnType<typeof ClarificationListSchema.parse>
+    )
+    if (clarifications?.approved_at && clarifications.clarifications.length > 0) {
+      decisions = clarifications.clarifications
+        .map((c) => `Q: ${c.question}\nA: ${c.answer ?? c.assumption ?? 'Not specified'}`)
+        .join('\n\n')
+    }
+  } catch {
+    // No clarifications file — that's fine
+  }
+
   const { output } = await generateText({
     model: openrouter(getModelId()),
     system,
@@ -99,7 +131,7 @@ export const generateSpec = async ({
       name: 'spec',
       description: 'Structured project specification derived from the document.',
     }),
-    prompt: buildUserPrompt(content, guidance),
+    prompt: buildUserPrompt(content, guidance, decisions),
   })
 
   return SpecSchema.parse({

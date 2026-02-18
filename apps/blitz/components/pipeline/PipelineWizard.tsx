@@ -1,6 +1,7 @@
 "use client"
 
 import { DocumentUpload } from "./DocumentUpload"
+import { ClarificationReview } from "./ClarificationReview"
 import { SpecEditor } from "./SpecEditor"
 import { TaskReview } from "./TaskReview"
 import { RunControls } from "@/components/dashboard/RunControls"
@@ -56,6 +57,10 @@ export const PipelineWizard = () => {
       </Card>
 
       <DocumentUpload onComplete={refresh} stage={data.state.pipeline.stage} />
+
+      {data.clarificationList && stage === 'clarifying' ? (
+        <ClarificationReview clarificationList={data.clarificationList} onRefresh={refresh} />
+      ) : null}
 
       {data.spec ? <SpecEditor spec={data.spec} onRefresh={refresh} /> : null}
 

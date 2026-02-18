@@ -83,3 +83,113 @@ a {
 .glow {
   box-shadow: 0 0 0 1px rgba(183, 255, 42, 0.4), 0 0 24px rgba(183, 255, 42, 0.35);
 }
+
+/* ─── Spec change animations ─── */
+
+@keyframes spec-section-flash {
+  0% {
+    border-color: rgba(183, 255, 42, 0.7);
+    box-shadow: 0 0 28px rgba(183, 255, 42, 0.25), inset 0 0 40px rgba(183, 255, 42, 0.04);
+  }
+  40% {
+    border-color: rgba(183, 255, 42, 0.35);
+    box-shadow: 0 0 14px rgba(183, 255, 42, 0.12);
+  }
+  100% {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+}
+
+@keyframes spec-sweep {
+  0% {
+    background-position: -100% 0;
+  }
+  50% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes spec-item-enter {
+  0% {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes spec-text-flash {
+  0% {
+    color: var(--accent);
+    text-shadow: 0 0 12px rgba(183, 255, 42, 0.35);
+  }
+  100% {
+    color: inherit;
+    text-shadow: none;
+  }
+}
+
+@keyframes spec-badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+.spec-changed {
+  animation: spec-section-flash 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(183, 255, 42, 0.06) 30%,
+    rgba(183, 255, 42, 0.1) 50%,
+    rgba(183, 255, 42, 0.06) 70%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: spec-section-flash 2.2s ease-out forwards, spec-sweep 1.8s ease-in-out forwards;
+}
+
+.spec-item-new {
+  animation: spec-item-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.spec-text-changed {
+  animation: spec-text-flash 1.8s ease-out forwards;
+}
+
+.spec-badge-active {
+  animation: spec-badge-pulse 1.4s ease-in-out 2;
+}
+
+/* ─── Spec chat scrollbar ─── */
+
+.spec-chat-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.spec-chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spec-chat-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.spec-chat-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}

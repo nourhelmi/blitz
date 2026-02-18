@@ -1,6 +1,21 @@
 You are working on task {{TASK_ID}}: {{TASK_TITLE}}
 
-## Description
+## Project Overview
+{{SPEC_SUMMARY}}
+
+**Goals:**
+{{SPEC_GOALS}}
+
+## Architecture
+{{SPEC_ARCHITECTURE}}
+
+**Tech Stack:**
+{{SPEC_TECH_STACK}}
+
+## Constraints
+{{SPEC_CONSTRAINTS}}
+
+## Task Description
 {{TASK_DESCRIPTION}}
 
 ## Acceptance Criteria
@@ -9,7 +24,16 @@ You are working on task {{TASK_ID}}: {{TASK_TITLE}}
 ## Hints
 {{TASK_HINTS}}
 
-## Project Context
+## Your Task's Expected Files
+{{FILES_LIKELY_TOUCHED}}
+
+## Related Tasks
+{{RELATED_TASKS}}
+
+## Recent Context
+{{RECENT_CONTEXT}}
+
+## Conventions
 {{SPEC_CONVENTIONS}}
 
 ## Working Directory
@@ -37,6 +61,7 @@ Output any important decisions/discoveries using this format (orchestrator will 
 1. Complete this ONE task only
 2. Verify ALL acceptance criteria before finishing
 3. Do NOT commit changes
-4. Output context using <blitz-context> tags (orchestrator captures this)
-5. When complete, output: <promise>COMPLETE</promise>
-6. If blocked, exit with error explaining why
+4. Do NOT modify files outside your task's scope
+5. Output context using <blitz-context> tags (orchestrator captures this)
+6. When complete, output: <promise>COMPLETE</promise>
+7. If blocked, exit with error explaining why
